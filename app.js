@@ -119,27 +119,25 @@ function navigatePage(pageName) {
     
     if (pageName === 'collection') {
         displayProduct();
-        renderCartItems();
     }
     if (pageName === 'cart') {
         renderCartItems();
     }
 }
 
-// Cart functions
+// Cart functions - SINGLE PRODUCT CHECKOUT
 function addToCart(productId) {
     const product = products[productId];
-    const existingItem = cart.find(item => item.id === product.id);
     
-    if (existingItem) {
-        existingItem.quantity += 1;
-    } else {
-        cart.push({ ...product, quantity: 1 });
-    }
+    // Clear existing cart (only one product at a time)
+    cart = [];
+    
+    // Add single product with quantity 1
+    cart.push({ ...product, quantity: 1 });
     
     saveCart();
     updateCartCount();
-    alert(`${product.name} added to cart!`);
+    showCheckout(); // Directly open checkout
 }
 
 function saveCart() {
@@ -147,7 +145,7 @@ function saveCart() {
 }
 
 function updateCartCount() {
-    const count = cart.reduce((total, item) => total + item.quantity, 0);
+    const count = cart.length > 0 ? 1 : 0;
     document.getElementById('cartCount').textContent = count;
 }
 
@@ -169,9 +167,6 @@ function renderCartItems() {
                 <p class="cart-item-price">$${(item.price * item.quantity).toFixed(2)}</p>
             </div>
             <div class="cart-item-qty">
-                <button class="qty-btn" onclick="updateQuantity(${index}, -1)">−</button>
-                <span class="qty-display">${item.quantity}</span>
-                <button class="qty-btn" onclick="updateQuantity(${index}, 1)">+</button>
                 <button class="remove-btn" onclick="removeFromCart(${index})">Remove</button>
             </div>
         </div>
@@ -183,17 +178,6 @@ function renderCartItems() {
     updateCartTotals();
 }
 
-function updateQuantity(index, change) {
-    cart[index].quantity += change;
-    if (cart[index].quantity <= 0) {
-        removeFromCart(index);
-    } else {
-        saveCart();
-        renderCartItems();
-        updateCartCount();
-    }
-}
-
 function removeFromCart(index) {
     cart.splice(index, 1);
     saveCart();
@@ -201,10 +185,16 @@ function removeFromCart(index) {
     renderCartItems();
 }
 
-function updateCartTotals() {
+function calculateTotals() {
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const tax = subtotal * 0.10;
     const total = subtotal + tax;
+    
+    return { subtotal, tax, total };
+}
+
+function updateCartTotals() {
+    const { subtotal, tax, total } = calculateTotals();
     
     document.getElementById('subtotal').textContent = `$${subtotal.toFixed(2)}`;
     document.getElementById('tax').textContent = `$${tax.toFixed(2)}`;
@@ -216,6 +206,10 @@ function updateCartTotals() {
 }
 
 function showCheckout() {
+    if (cart.length === 0) {
+        alert('Please select a product first');
+        return;
+    }
     renderCheckoutItems();
     document.getElementById('checkoutModal').classList.add('show');
 }
@@ -228,7 +222,7 @@ function renderCheckoutItems() {
     const checkoutItemsDiv = document.getElementById('checkoutItems');
     checkoutItemsDiv.innerHTML = cart.map(item => `
         <div class="checkout-item">
-            <span>${item.name} x${item.quantity}</span>
+            <span>${item.name}</span>
             <span>$${(item.price * item.quantity).toFixed(2)}</span>
         </div>
     `).join('');
@@ -239,9 +233,18 @@ if (checkoutForm) {
     checkoutForm.addEventListener('submit', (e) => {
         e.preventDefault();
         
-        const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-        const tax = subtotal * 0.10;
-        const total = subtotal + tax;
+        if (cart.length === 0) {
+            alert('Your cart is empty');
+            return;
+        }
+        
+        // Validate single product
+        if (cart.length !== 1) {
+            alert('You can only checkout with one product at a time');
+            return;
+        }
+        
+        const { subtotal, tax, total } = calculateTotals();
         
         const orderData = {
             orderId: `MK-${Date.now()}`,
@@ -266,6 +269,7 @@ if (checkoutForm) {
         document.getElementById('checkoutModal').classList.remove('show');
         document.getElementById('successMessage').innerHTML = `
             <strong>Order ID: ${orderData.orderId}</strong><br><br>
+            Product: ${orderData.items[0].name}<br>
             Total: $${total.toFixed(2)}<br>
             Confirmation sent to: ${orderData.customer.email}<br>
             Also notified: contactmucoki@gmail.com
